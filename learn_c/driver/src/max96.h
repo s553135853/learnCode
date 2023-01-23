@@ -8,7 +8,8 @@ struct interface
 
 struct contetx_light
 {
-    
+    int age;
+    struct interface* _inter;
 };
 
 

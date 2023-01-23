@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "max96.h": "c"
+        "max96.h": "c",
+        "calu.h": "c"
     }
 }
