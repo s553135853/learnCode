@@ -2,6 +2,7 @@
 #include "my_stack.h"
 #include <stdlib.h>
 #include <string.h>
+#include "func_idea.h"
 typedef struct
 {
     int  age;
@@ -12,7 +13,8 @@ typedef struct
 
 
 int main()
-{
+{   
+    #if 0
     my_stack* stack = create_stack();
     my_element *element =(my_element *)calloc(2,sizeof(my_element));
     if(element == NULL)
@@ -48,8 +50,9 @@ int main()
         if(user2 != NULL)
             printf("name:%s\n",user2->name);
     }
-
-
+    #endif
+    char temp[] = {'2','1'};
+    my_atoi(temp);
 
     #if 0
     free(users);
