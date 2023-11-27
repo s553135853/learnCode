@@ -85,17 +85,19 @@ int quene_empty(book_quene *q)
 int quene_length(book_quene *q)
 {
     int count = 0;
-    if (q == NULL )
+    if (q == NULL)
         return -1;
     if (q->head == NULL) {
         return count;
     }
-    q->rear = q->head;
-    while (q->rear)
+    element* _e = NULL;
+    _e = q->head;
+    while (_e)
     {
         count++;
-        q->rear = q->rear->next;
+        _e = _e->next;
     }
+    
     return count;
 }
 
