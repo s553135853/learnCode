@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <pthread.h>
+
 
 typedef struct
 {
@@ -36,6 +38,8 @@ int quene_length(book_quene *q);
 int get_head(book_quene *q, element **e);
 int en_quene(book_quene *q, element *e);
 int de_quene(book_quene *q);
+void print_queue(book_quene *q);
+
 
 int init_quene(book_quene *q)
 {
@@ -142,10 +146,76 @@ int de_quene(book_quene *q)
     return 0;
 }
 
+void print_queue(book_quene *q)
+{
+    if (q == NULL || q->head == NULL)
+        return -1;
+    element *temp = q->head;
+    while (temp != NULL) {
+        printf("%d\n", temp->data.id);
+        temp = temp->next;
+    }
+}
 
 
+
+
+static int temp = 0;
+
+static void *test_thread(void *avg)
+{
+    element *tempe = NULL;
+    book_quene *test_quene = (struct book_quene *)avg;
+    int ret = 0;
+    while (1) {
+#if 1
+        ret = get_head(test_quene, &tempe);
+        if (!ret) {
+            printf("de_quene, data:%d, len:%d\n", tempe->data.id, quene_length(test_quene));
+            de_quene(test_quene);
+        }
+       
+        if (quene_length(test_quene) == 5) {
+            print_queue(test_quene);
+            break;
+        }
+#endif
+        // printf("%d\n", temp);
+        sleep(1);
+    }
+
+    return NULL;
+}
+
+static void *chang_temp(void *avg)
+{
+    element *test_data = NULL;
+    book_quene *test_quene = (struct book_quene *)avg;
+    while (1) {
+        temp++;
+#if 1
+        test_data = (element *)malloc(sizeof(element));
+        test_data->data.id = temp;
+        test_data->next = NULL;
+        en_quene(test_quene, test_data);
+        printf("en_quene\n");
+#endif
+
+        usleep(700 * 1000);
+    }
+
+    return NULL;
+}
+
+
+
+
+
+
+#if 1
 int main(int argc, char const *argv[])
 {
+    #if 0
     int ret = -1;
     book_quene* test_quene = (book_quene* )malloc(sizeof(book_quene));
     ret = init_quene(test_quene);
@@ -170,5 +240,27 @@ int main(int argc, char const *argv[])
         printf("id:%d, name:%c\n", temp->data.id, temp->data.name);
     ret = destroy_quene(test_quene);
     test_quene = NULL;
+    #endif
+    pid_t pid;
+    pid_t pid2;
+    int ret;
+    book_quene *test_quene = (book_quene *)malloc(sizeof(book_quene));
+
+    ret = init_quene(test_quene);
+
+    ret = pthread_create(&pid, NULL, chang_temp, test_quene);
+    if (ret) {
+        printf("create thread failed\n");
+    }
+
+    ret = pthread_create(&pid2, NULL, test_thread, test_quene);
+    if (ret) {
+        printf("create thread failed\n");
+    }
+
+    pthread_exit(NULL);
+    free(test_quene);
+
     return 0;
 }
+#endif
