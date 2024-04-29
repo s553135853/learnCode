@@ -6,30 +6,32 @@
 #include <linux/kernel.h> /*Needed by all modules*/
 #include <linux/module.h> /*Needed for KERN_* */
 #include <linux/rwlock.h>
+#include <linux/rwsem.h>
+#include <linux/sched/signal.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
-
-MODULE_LICENSE("GPL");
+#include <linux/wait.h>
 
 #define CLASS_NAME "char_my_class"
 #define MY_DEVICE_MAGIC 'k'
 #define MY_IOCTL_SET _IOW(MY_DEVICE_MAGIC, 1, int)
 #define MY_IOCTL_GET _IOR(MY_DEVICE_MAGIC, 2, int)
+#define MAX_COUNT_QUEUE 64
 
 enum LOG_LEVEL {
     INFO,
     DEBUG
 };
 
-#define CDEV_LOG(level, formt, ...)                            \
-    do {                                                       \
+#define CDEV_LOG(level, formt, ...)                              \
+    do {                                                         \
         \    
-if(level == INFO)                                              \
-        {                                                      \
+if(level == INFO)                                                \
+        {                                                        \
             printk("[----cdev-----]" formt "\n", ##__VA_ARGS__); \
         \    
-}                                                  \
+}                                                    \
     } while (0)
 
 struct p_cdev_t {
@@ -39,6 +41,10 @@ struct p_cdev_t {
     struct device *dev;
     int num_data;
     rwlock_t lock;
+    struct rw_semaphore sem;
+    wait_queue_head_t r_wait;
+    wait_queue_head_t w_wait;
+    u32 len;
 };
 
 static struct p_cdev_t *pdev;
@@ -78,31 +84,97 @@ static ssize_t write_hello(struct file *file, const char __user *buf, size_t len
 {
     struct p_cdev_t *pv = (struct p_cdev_t *)file->private_data;
     u8 buf_data[32];
+    u32 ret;
     CDEV_LOG(INFO, "------------write_hello------------");
-    write_lock(&pv->lock);
-    if (copy_from_user(buf_data, buf, sizeof(int)) < 0) {
-        CDEV_LOG(INFO, "------------copy_from_user failed------------");
-        write_unlock(&pv->lock);
-        return 0;
-    }
-    memcpy(&pv->num_data, buf_data, sizeof(int));
+    down_write(&pv->sem);
+    DECLARE_WAITQUEUE(wait, current);
+    add_wait_queue(&pv->w_wait, &wait);
+    while (pv->len == MAX_COUNT_QUEUE) {
+        if (file->f_flags & O_NONBLOCK) {
+            ret = -EAGAIN;
+            goto out;
+        }
 
-    write_unlock(&pv->lock);
-    return 0;
+        CDEV_LOG(INFO, "write block IO");
+        __set_current_state(TASK_INTERRUPTIBLE);
+        schedule();
+        up_write(&pv->sem);
+        if (signal_pending(current)) {
+            ret = -ERESTARTSYS;
+            remove_wait_queue(&pv->w_wait, &wait);
+            set_current_state(TASK_RUNNING);
+            return ret;
+        }
+
+        down_write(&pv->sem);
+    }
+
+    if (copy_from_user(buf_data, buf, sizeof(int)) != 0) {
+        CDEV_LOG(INFO, "------------copy_from_user failed------------");
+        ret = -EFAULT;
+        goto out;
+    } else {
+        pv->len += sizeof(int);
+        wake_up_interruptible(&pv->r_wait);
+    }
+
+    memcpy(&pv->num_data, buf_data, sizeof(int));
+    ret = sizeof(int);
+    CDEV_LOG(INFO, "return write");
+
+out:
+    up_write(&pv->sem);
+    remove_wait_queue(&pv->w_wait, &wait);
+    set_current_state(TASK_RUNNING);
+    return ret;
 }
 
 static ssize_t read_hello(struct file *file, char __user *buf, size_t len, loff_t *off)
 {
     struct p_cdev_t *pv = (struct p_cdev_t *)file->private_data;
+    int ret;
     CDEV_LOG(INFO, "------------read_hello------------");
-    read_lock(&pv->lock);
+    down_read(&pv->sem);
+    DECLARE_WAITQUEUE(wait, current);
+    add_wait_queue(&pv->r_wait, &wait);
+    while (pv->len == 0) {
+        if (file->f_flags & O_NONBLOCK) {
+            ret = -EAGAIN;
+            goto out;
+        }
+
+        CDEV_LOG(INFO, "read block IO");
+        __set_current_state(TASK_INTERRUPTIBLE);
+        up_read(&pv->sem);
+        schedule();
+        if (signal_pending(current)) {
+            ret = -ERESTARTSYS;
+            goto out2;
+        }
+
+        down_read(&pv->sem);
+    }
+
     if (copy_to_user(buf, &pv->num_data, sizeof(int)) < 0) {
         CDEV_LOG(INFO, "------------copy_to_user failed------------");
-        read_unlock(&pv->lock);
         return 0;
     }
-    read_unlock(&pv->lock);
-    return sizeof(int);
+    else {
+        wake_up_interruptible(&pv->w_wait);
+    }
+
+    ret = sizeof(int);
+
+    up_read(&pv->sem);
+    return ret;
+
+out:
+    up_read(&pv->sem);
+    return ret;
+out2:
+    remove_wait_queue(&pv->r_wait, &wait);
+    set_current_state(TASK_RUNNING);
+    return ret;
 }
 
 static struct file_operations my_file =
@@ -110,8 +182,7 @@ static struct file_operations my_file =
         .open = &open_hello,
         .write = &write_hello,
         .read = &read_hello,
-        .unlocked_ioctl = &hello_ioctl
-    };
+        .unlocked_ioctl = &hello_ioctl};
 
 static int hello_init(void)
 {
@@ -135,11 +206,14 @@ static int hello_init(void)
         CDEV_LOG(INFO, "add my_cdev  failed");
         goto fail_destroy;
     }
+    init_rwsem(&pdev->sem);
+    init_waitqueue_head(&pdev->r_wait);
+    init_waitqueue_head(&pdev->w_wait);
 
-    rwlock_init(&pdev->lock);
     pdev->my_class = class_create(THIS_MODULE, CLASS_NAME);
     pdev->dev = device_create(pdev->my_class, NULL, pdev->my_devno, NULL, "test_node");
     pdev->num_data = 300;
+    pdev->len = 0;
 
     return 0;
 fail_destroy:
@@ -156,5 +230,7 @@ static void hello_exit(void)
 }
 
 /* main module function*/
+MODULE_LICENSE("GPL");
+
 module_init(hello_init);
 module_exit(hello_exit);
