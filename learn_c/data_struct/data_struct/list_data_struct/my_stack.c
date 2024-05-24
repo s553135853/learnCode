@@ -3,6 +3,8 @@
 my_stack *create_stack()
 {
     my_stack *stack = (my_stack *)calloc(1, sizeof(my_stack));
+
+    stack = (my_stack*)calloc(i, sizeof(int));
     if (stack == NULL) {
         printf("create stack failed\n");
         return NULL;
