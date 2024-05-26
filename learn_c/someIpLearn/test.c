@@ -1,108 +1,98 @@
-#include <stdio.h>
 #include <pthread.h>
-
-
-
-struct Data_source
-{
+#include <stdio.h>
+#include <stdlib.h>
+struct jili_list_node {
+    struct jili_list_node *next;
     int flag;
-    const unsigned char* _data;
-};
-struct Queue_my
-{
-    struct Data_source data_str;
-    struct Queue_my* next;
+    unsigned char *_data;
 };
 
-static struct Queue_my* _queue;
-static struct Queue_my _elementOne;
-static struct Queue_my _elementTwo;
+struct jili_list_node *init_list();
+void push_data_to_list(struct jili_list_node *head, unsigned char *_data);
+void *show_data(void *avg);
+void *test_jili_list_node(void *avg);
 
-
-
-void initQueue()
+int main(int argc, char const *argv[])
 {
-    _elementOne.data_str.flag = 0;
-    _elementOne.data_str._data = NULL;
-    _queue = &_elementOne;
-    _elementTwo.data_str.flag = 0;
-    _elementTwo.data_str._data = NULL;
-    _queue->next = &_elementTwo;
+    struct jili_list_node *head = init_list();
+    pthread_t pid;
+    int ret;
+    ret = pthread_create(&pid, NULL, (void *)test_jili_list_node, head);
+    if (ret < 0)
+        return -1;
+
+    ret = pthread_create(&pid, NULL, (void *)show_data, head);
+    if (ret < 0)
+        return -1;
+
+    sleep(5);
+    // head->next->flag = 1;
+    head->flag = 1;
+
+    pthread_join(pid, NULL);
+    return 0;
 }
 
-size_t sizeQueue(struct Queue_my* _value)
+struct jili_list_node *init_list()
 {
-    size_t count = 0;
-    while (_value != NULL)
-    {
-        count ++;
-        _value = _value->next;
-    }
-    return count;  
+    struct jili_list_node *head = (struct jili_list_node *)malloc(sizeof(struct jili_list_node));
+    head->flag = 0;
+    head->_data = NULL;
+    head->next = NULL;
+    return head;
 }
 
-void showData(struct Queue_my* _value)
+void push_data_to_list(struct jili_list_node *head, unsigned char *_data)
 {
-    while (_value != NULL)
-    {
-        printf("flag is [%d]\n",_value->data_str.flag);
-        _value = _value->next;
-    }
-    
-}
+    if (head == NULL)
+        return;
 
-struct Queue_my* front()
-{
-    return _queue;
-}
-struct Queue_my* back()
-{
-    return _queue->next;
-}
-
-
-void push_back(int flag,const unsigned char* _data, struct Queue_my** souere)
-{
-    struct Queue_my* last =back();
-    struct Queue_my* _head =front();
-    struct Queue_my* _temp = NULL;
-    if(!_head->data_str.flag)
-    {
-        _head->data_str.flag=flag;
-        _head->data_str._data = NULL;
-        _head->next = NULL;
-        last->next=_head;
-        *souere = last;
-    }
-    else
-    {
-        last->data_str.flag=flag;
-        last->data_str._data = _data;
+    if (!head->flag && head->_data == NULL) {
+        head->_data = _data;
+    } else if (head->next == NULL) {
+        struct jili_list_node *node = (struct jili_list_node *)malloc(sizeof(struct jili_list_node));
+        node->_data = _data;
+        node->flag = 0;
+        node->next = NULL;
+        head->next = node;
+    } else if (head->next->flag){
+        head->_data = _data;
+    } else {
+        head->next->_data = _data;
     }
 }
 
-void tryData()
+void *show_data(void *avg)
 {
-    printf("enter thread\n");
-    while (1)
-    {
-       sleep(1);
-       push_back(0,NULL,&_queue);
-       showData(_queue);
-       printf("receive data\n");
+    struct jili_list_node *head = avg;
+    while (1) {
+        if (head == NULL)
+            continue;
+        if (head->_data != NULL)
+            printf("head:%c\n", head->_data[0]);
+        if (head->next != NULL && head->next->_data != NULL)
+            printf("last:%c\n", head->next->_data[0]);
+        sleep(1);
     }
-    
+    return NULL;
 }
 
-
-int main()
+void *test_jili_list_node(void *avg)
 {
-    initQueue();
-    showData(_queue);
-    pthread_t _pid;
-    int ret=-1;
-    ret = pthread_create(&_pid,NULL,(void *)tryData,NULL);
-    sleep(15);
-     _queue->data_str.flag=1;
-    sleep(100);
+    struct jili_list_node *head = avg;
+    unsigned char *_data;
+    int count = 0;
+    while (1) {
+        _data = malloc(sizeof(unsigned char) * 5);
+        if (count % 2 == 0) {
+            _data[0] = 'a';
+        } else {
+            _data[0] = 'b';
+        }
+        push_data_to_list(head, _data);
+        count++;
+        sleep(1);
+    }
+
+    return NULL;
 }
