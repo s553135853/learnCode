@@ -15,6 +15,7 @@ int tree_high(struct binary_tree *tree);
 void leaf_node_num(struct binary_tree *tree, int *sum); // 求叶子节点的个数
 int tree_node_num(struct binary_tree *tree);
 struct binary_tree *search_node(struct binary_tree *tree, int value);
+struct binary_tree *invert_tree(struct binary_tree *tree);
 
 int main(int argc, char const *argv[])
 {
@@ -31,6 +32,8 @@ int main(int argc, char const *argv[])
         printf("p_find data:%d\n", p_find->data);
     }
 
+    init_tree = invert_tree(init_tree);
+    pre_order_traverse(init_tree);
     return 0;
 }
 
@@ -127,4 +130,17 @@ struct binary_tree *search_node(struct binary_tree *tree, int value)
             return !!pr > 0 ? pr : pl;
         }
     }
+}
+
+// 翻转二叉树
+struct binary_tree *invert_tree(struct binary_tree *tree)
+{
+    if (tree == NULL) {
+        return NULL;
+    }
+
+    struct binary_tree *temp = tree->lch;
+    tree->lch = invert_tree(tree->rch);
+    tree->rch = invert_tree(temp);
+    return tree;
 }
