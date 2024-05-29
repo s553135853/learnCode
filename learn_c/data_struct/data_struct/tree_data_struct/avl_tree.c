@@ -1,0 +1,97 @@
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+struct binary_tree {
+    int data;
+    struct binary_tree *rch, *lch;
+};
+
+struct TreeNode {
+    int val;
+    struct TreeNode *left, *right;
+};
+
+struct TreeNode_temp {
+    int val;
+    struct TreeNode_temp *node;
+};
+
+static int count = 0;
+static int temp;
+static int index1 = 0;
+static int index2 = 0;
+static int err_index_count = 0;
+
+void mid_count_node(struct TreeNode *root)
+{
+    if (root == NULL)
+        return;
+    count++;
+    mid_count_node(root->left);
+    mid_count_node(root->right);
+    return;
+}
+
+void mid_array_node(struct TreeNode *root, struct TreeNode_temp *p)
+{
+    if (p == NULL || root == NULL)
+        return;
+    mid_array_node(root->left, p);
+    temp = count++;
+    p[temp].val = root->val;
+    p[temp].node = root;
+    mid_array_node(root->right, p);
+    return;
+}
+
+void find_err_node(struct TreeNode *root, struct TreeNode_temp *p)
+{
+    for (size_t i = 0; i < count - 1; i++) {
+#if 1
+        if (p[i + 1].val < p[i].val) {
+            if (index1 == -1) {
+                index1 = i;
+                err_index_count = 1;
+            } else {
+                index2 = i + 1;
+                err_index_count = 2;
+                break;
+            }
+        }
+#endif
+    }
+
+    if (index1 != -1 && index2 != -1) {
+        int tes = p[index1].node->val;
+        p[index1].node->val = p[index2].node->val;
+        p[index2].node->val = tes;
+    } else {
+        if (index1 != -1) {
+
+            int tes = p[index1].node->val;
+            p[index1].node->val = p[index1 + 1].node->val;
+            p[index1 + 1].node->val = tes;
+
+        } else {
+
+            int tes = p[index1].node->val;
+            p[index1].node->val = p[index1 + 1].node->val;
+            p[index1 + 1].node->val = tes;
+        }
+    }
+}
+
+void recoverTree(struct TreeNode *root)
+{
+
+    mid_count_node(root);
+    struct TreeNode_temp *p = (struct TreeNode_temp *)malloc(sizeof(struct TreeNode_temp) * count);
+    count = 0;
+    mid_array_node(root, p);
+    index1 = -1;
+    index2 = -1;
+    find_err_node(root, p);
+    return;
+}
+

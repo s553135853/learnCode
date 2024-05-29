@@ -13,6 +13,7 @@ struct binary_tree *find_node(struct binary_tree *tree, int num);
 void destory_binary_tree(struct binary_tree *tree);
 struct binary_tree *find_min_node(struct binary_tree *tree);
 struct binary_tree *delete_binary_node(struct binary_tree *tree, int num);
+int is_valid_bst(struct binary_tree *root);
 
 int main(int argc, char const *argv[])
 {
@@ -103,7 +104,8 @@ void destory_binary_tree(struct binary_tree *tree)
     free(tree);
 }
 
-struct binary_tree* delete_binary_node(struct binary_tree *tree, int num) {
+struct binary_tree *delete_binary_node(struct binary_tree *tree, int num)
+{
     if (tree == NULL)
         return NULL;
 
