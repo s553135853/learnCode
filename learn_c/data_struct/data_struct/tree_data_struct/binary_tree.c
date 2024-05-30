@@ -139,6 +139,8 @@ struct binary_tree *invert_tree(struct binary_tree *tree)
         return NULL;
     }
 
+    if (tree->rch == tree->lch)
+        return tree;
 
     struct binary_tree *temp = tree->lch;
     tree->lch = invert_tree(tree->rch);
